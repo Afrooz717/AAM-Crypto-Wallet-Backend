@@ -105,15 +105,15 @@ export class WalletManagementService {
       savedWallet = await this.walletRepository.save(existingUserWallet);
     } else {
       // Create new wallet record
-      const wallet = this.walletRepository.create({
-        address: address.toLowerCase(),
-        encryptedPrivateKey,
-        encryptedMnemonic,
+    const wallet = this.walletRepository.create({
+      address: address.toLowerCase(),
+      encryptedPrivateKey,
+      encryptedMnemonic,
         derivationIndex: 0,
         label: importWalletDto.label || `My Wallet`,
         isMain: true,
-        userId,
-      });
+      userId,
+    });
 
       savedWallet = await this.walletRepository.save(wallet);
     }
@@ -169,15 +169,15 @@ export class WalletManagementService {
       savedWallet = await this.walletRepository.save(existingUserWallet);
     } else {
       // Create new wallet record (no seed phrase, only private key)
-      const wallet = this.walletRepository.create({
-        address: address.toLowerCase(),
-        encryptedPrivateKey,
+    const wallet = this.walletRepository.create({
+      address: address.toLowerCase(),
+      encryptedPrivateKey,
         encryptedMnemonic: undefined, // No seed phrase for private key import
         derivationIndex: 0,
         label: importWalletDto.label || `Imported Address`,
         isMain: true,
-        userId,
-      });
+      userId,
+    });
 
       savedWallet = await this.walletRepository.save(wallet);
     }
@@ -351,6 +351,7 @@ export class WalletManagementService {
       });
 
       const savedWallet = await this.walletRepository.save(newWallet);
+      
       createdWallets.push({
         id: savedWallet.id,
         address: savedWallet.address,
@@ -434,59 +435,16 @@ export class WalletManagementService {
       throw new NotFoundException('No wallets found for this user');
     }
 
-    // Check if current user already has a wallet
-    const currentUserWallet = await this.walletRepository.findOne({
-      where: { userId, isActive: true }
-    });
-
-    if (currentUserWallet) {
-      throw new BadRequestException('You already have a wallet. Cannot recover another wallet.');
-    }
-
-    // Import all wallets from the recovered user
-    const importedWallets: Array<{
-      id: number;
-      address: string;
-      label: string;
-      derivationIndex: number;
-      isMain: boolean;
-      hasSeedPhrase: boolean;
-      createdAt: Date;
-    }> = [];
-
-    for (const wallet of existingWallets) {
-      // Determine label for the wallet
-      const walletLabel = recoverWalletDto.label || wallet.label || `Recovered Wallet ${wallet.derivationIndex + 1}` || 'Recovered Wallet';
-      
-      // Create new wallet record for current user
-      const newWallet = this.walletRepository.create({
-        address: wallet.address,
-        encryptedPrivateKey: wallet.encryptedPrivateKey,
-        encryptedMnemonic: wallet.encryptedMnemonic,
-        derivationIndex: wallet.derivationIndex,
-        label: walletLabel,
-        isMain: wallet.isMain,
-        userId,
-      });
-
-      const savedWallet = await this.walletRepository.save(newWallet);
-      
-      importedWallets.push({
-        id: savedWallet.id,
-        address: savedWallet.address,
-        label: savedWallet.label || `Recovered Wallet ${savedWallet.derivationIndex + 1}`,
-        derivationIndex: savedWallet.derivationIndex,
-        isMain: savedWallet.isMain,
-        hasSeedPhrase: !!savedWallet.encryptedMnemonic,
-        createdAt: savedWallet.createdAt,
-      });
-    }
-
-    return {
-      message: `Successfully recovered ${importedWallets.length} wallet addresses`,
-      wallets: importedWallets,
-      totalAddresses: importedWallets.length,
-    };
+    // Return all wallet addresses with private keys
+    return existingWallets.map(wallet => ({
+      id: wallet.id,
+      address: wallet.address,
+      label: wallet.label,
+      derivationIndex: wallet.derivationIndex,
+      isMain: wallet.isMain,
+      hasSeedPhrase: !!wallet.encryptedMnemonic,
+      privateKey: this.cryptoService.decrypt(wallet.encryptedPrivateKey), // Decrypt and return private key
+      createdAt: wallet.createdAt,
+    }));
   }
-
 } 
